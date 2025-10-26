@@ -62,26 +62,21 @@ def call_transcribe_api(audio_path: str) -> Tuple[Optional[str], Optional[str]]:
     
     Returns:
         tuple: (transcript_text, error_message)
-        - If successful: (transcript, None)
-        - If failed: (None, error_message)
     """
     try:
-        # Open and send audio file
         with open(audio_path, "rb") as audio_file:
             files = {"file": audio_file}
             
             response = requests.post(
                 f"{API_BASE_URL}/transcribe",
                 files=files,
-                timeout=120  # 2 minutes timeout for large files
+                timeout=120
             )
         
-        # Check if successful
         if response.status_code == 200:
             data = response.json()
             return data["transcript"], None
         else:
-            # Extract error message from response
             try:
                 error_detail = response.json().get("detail", "Unknown error")
             except:
@@ -107,22 +102,18 @@ def call_generate_minutes_api(transcript: str) -> Tuple[Optional[str], Optional[
     
     Returns:
         tuple: (minutes_markdown, error_message)
-        - If successful: (minutes, None)
-        - If failed: (None, error_message)
     """
     try:
         response = requests.post(
             f"{API_BASE_URL}/generate-minutes",
             json={"transcript": transcript},
-            timeout=60  # 1 minute timeout
+            timeout=60
         )
         
-        # Check if successful
         if response.status_code == 200:
             data = response.json()
             return data["minutes"], None
         else:
-            # Extract error message from response
             try:
                 error_detail = response.json().get("detail", "Unknown error")
             except:
@@ -143,78 +134,73 @@ def call_generate_minutes_api(transcript: str) -> Tuple[Optional[str], Optional[
 # Main Processing Function
 # ============================================
 
-def process_audio_to_minutes(audio_path: str) -> Tuple[str, str]:
+def process_audio_to_minutes(audio_path: str) -> Tuple[str, str, gr.update]:
     """
     Main function: Convert audio file to formatted meeting minutes
-    
-    This is the core function that:
-    1. Validates input
-    2. Calls transcription API
-    3. Calls minutes generation API
-    4. Returns formatted output
     
     Args:
         audio_path: Path to uploaded audio file
     
     Returns:
-        tuple: (status_message, minutes_markdown)
+        tuple: (status_message, minutes_markdown, accordion_update)
     """
     
-    # ========================================
-    # STEP 0: Validate input
-    # ========================================
+    # Validate input
     if not audio_path:
-        return "❌ Please upload an audio file first.", ""
+        return "❌ Please upload an audio file first.", "", gr.update(open=False)
     
     # Check backend health
     if not check_backend_health():
-        return "❌ Backend server is not running! Please start it with: python backend.py", ""
+        return "❌ Backend server is not running! Please start it with: python backend.py", "", gr.update(open=False)
     
     # Get file info
     try:
         file_size_mb = get_file_size_mb(audio_path)
         filename = os.path.basename(audio_path)
     except Exception as e:
-        return f"❌ Error reading file: {str(e)}", ""
+        return f"❌ Error reading file: {str(e)}", "", gr.update(open=False)
     
     # Check file size
     if file_size_mb > 25:
-        return f"❌ File too large ({file_size_mb}MB). Maximum size is 25MB.", ""
+        return f"❌ File too large ({file_size_mb}MB). Maximum size is 25MB.", "", gr.update(open=False)
     
-    # ========================================
-    # STEP 1: Transcribe audio to text
-    # ========================================
+    # STEP 1: Transcribe
     status_msg = f"🎙️ **Transcribing audio...** ({file_size_mb}MB)\n\n*Think of your favourite song in the meanwhile 🎵*"
-    yield status_msg, ""
+    yield status_msg, "", gr.update(open=False)
     
     transcript, error = call_transcribe_api(audio_path)
     
     if error:
-        yield f"❌ {error}", ""
+        yield f"❌ {error}", "", gr.update(open=False)
         return
     
     # Show transcript preview
-    transcript_preview = transcript[:200] + "..." if len(transcript) > 200 else transcript
+    transcript_preview = transcript[:150] + "..." if len(transcript) > 150 else transcript
     status_msg = f"✅ **Transcription complete!**\n\n📝 Preview: *{transcript_preview}*"
-    yield status_msg, ""
+    yield status_msg, "", gr.update(open=False)
     
-    # ========================================
-    # STEP 2: Generate formatted minutes
-    # ========================================
+    # STEP 2: Generate minutes
     status_msg = "📝 **Generating minutes...**\n\n*Think of your favourite TV Show in the meanwhile 📺*"
-    yield status_msg, ""
+    yield status_msg, "", gr.update(open=False)
     
     minutes, error = call_generate_minutes_api(transcript)
     
     if error:
-        yield f"❌ {error}", ""
+        yield f"❌ {error}", "", gr.update(open=False)
         return
     
-    # ========================================
-    # STEP 3: Return final result
-    # ========================================
+    # Final result
     final_status = f"✅ **All done!** Minutes generated successfully.\n\n📄 **File:** {filename} ({file_size_mb}MB)"
-    yield final_status, minutes
+    yield final_status, minutes, gr.update(open=True)
+
+def refresh_page():
+    """
+    Clear all inputs and outputs
+    
+    Returns:
+        tuple: (cleared_audio, cleared_status, cleared_minutes, closed_accordion)
+    """
+    return None, "Ready to process audio. Upload a file and click Generate Minutes.", "", gr.update(open=False)
 
 # ============================================
 # Build Gradio Interface
@@ -222,100 +208,130 @@ def process_audio_to_minutes(audio_path: str) -> Tuple[str, str]:
 
 with gr.Blocks(title="Meeting Minutes Generator", theme=gr.themes.Soft()) as demo:
     
-    # Header
-    gr.Markdown("# 📝 Meeting Minutes Generator")
-    gr.Markdown("### Upload meeting audio → Get formatted, professional minutes instantly")
-    gr.Markdown("---")
+    # ========================================
+    # Centered Header
+    # ========================================
+    gr.Markdown(
+        """
+        <div style="text-align: center; max-width: 800px; margin: 0 auto;">
+            <h1>📝 Meeting Minutes Generator</h1>
+            <p style="font-size: 1.2em; color: #666;">
+                Upload meeting audio → Get formatted, professional minutes instantly
+            </p>
+        </div>
+        """
+    )
     
+    gr.Markdown("<br>")
+    
+    # ========================================
+    # Main Upload Section (Centered)
+    # ========================================
     with gr.Row():
+        with gr.Column(scale=1):
+            pass  # Empty column for centering
+        
         with gr.Column(scale=2):
-            
-            # ========================================
-            # Input Section
-            # ========================================
-            gr.Markdown("## 🎙️ Step 1: Upload Audio")
-            
+            # Audio upload - HIDDEN waveform display
             audio_input = gr.Audio(
-                label="Upload Meeting Audio File",
+                label="Upload Meeting Audio",
                 type="filepath",
-                sources=["upload"],  # Only allow file upload
+                sources=["upload"],
+                waveform_options=gr.WaveformOptions(show_controls=False)
             )
             
-            gr.Markdown("""
-            **Supported formats:** MP3, WAV, M4A, WEBM, FLAC  
-            **Maximum size:** 25 MB (~25 minutes at 128kbps)
-            """)
-            
-            generate_btn = gr.Button(
-                "🚀 Generate Minutes",
-                variant="primary",
-                size="lg"
+            gr.Markdown(
+                """
+                <div style="text-align: center; color: #888; font-size: 0.9em; margin-top: 10px;">
+                    Supported: MP3, WAV, M4A, WEBM • Max: 25MB (~25 minutes)
+                </div>
+                """
             )
             
-            gr.Markdown("---")
+            gr.Markdown("<br>")
             
-            # ========================================
-            # Status Section
-            # ========================================
-            gr.Markdown("## 📊 Status")
+            with gr.Row():
+                generate_btn = gr.Button(
+                    "🚀 Generate Minutes",
+                    variant="primary",
+                    size="lg",
+                    scale=2
+                )
+                refresh_btn = gr.Button(
+                    "🔄 Refresh Page",
+                    variant="secondary",
+                    size="lg",
+                    scale=1
+                )
             
+            gr.Markdown("<br>")
+            
+            # Status display
             status_output = gr.Markdown(
                 "Ready to process audio. Upload a file and click Generate Minutes.",
                 elem_classes=["status-box"]
             )
         
-        with gr.Column(scale=3):
-            
-            # ========================================
-            # Output Section
-            # ========================================
-            gr.Markdown("## 📄 Generated Minutes")
-            
-            minutes_output = gr.Markdown(
-                "",
-                label="Meeting Minutes",
-                show_copy_button=True,  # Built-in copy button!
-                container=True,
-                elem_classes=["minutes-output"]
-            )
+        with gr.Column(scale=1):
+            pass  # Empty column for centering
+    
+    gr.Markdown("<br>")
     
     # ========================================
-    # Footer / Instructions
+    # Generated Minutes Section (Collapsible)
     # ========================================
-    gr.Markdown("---")
-    with gr.Accordion("ℹ️ How to use", open=False):
+    with gr.Accordion("📄 Generated Minutes", open=False) as minutes_accordion:
+        minutes_output = gr.Markdown(
+            "",
+            show_copy_button=True,
+            elem_classes=["minutes-output"]
+        )
+    
+    gr.Markdown("<br><br>")
+    
+    # ========================================
+    # Instructions (Simplified)
+    # ========================================
+    with gr.Accordion("ℹ️ Quick Start Guide", open=False):
         gr.Markdown("""
-        ### Quick Start Guide:
+        ### How to use:
         
-        1. **Upload Audio**: Click the audio upload box and select your meeting recording
-        2. **Generate**: Click the "Generate Minutes" button
-        3. **Wait**: Transcription takes ~30 seconds, minutes generation takes ~5 seconds
-        4. **Copy**: Use the copy button in the top-right of the minutes output
-        
-        ### Tips:
-        - Use clear, high-quality audio for best results
-        - Shorter meetings (5-15 minutes) work best for MVP testing
-        - The app removes filler words and formats content automatically
-        - All processing happens in-memory (no data is stored)
-        
-        ### Troubleshooting:
-        - If you see "Backend not running" → Run `python backend.py` in terminal
-        - If transcription fails → Check audio quality and file size
-        - If generation fails → Try a shorter transcript
+        1. **Upload Audio** - Click the upload box and select your meeting recording
+        2. **Generate** - Click the "Generate Minutes" button
+        3. **Wait** - Transcription takes ~30 seconds, formatting takes ~5 seconds
+        4. **Copy** - Use the copy button to save your minutes
+        5. **Refresh** - Click refresh to start over with a new recording
         """)
     
-    gr.Markdown("---")
-    gr.Markdown("Made with ❤️ using Groq Whisper Large v3 + GPT-OSS-120B")
+    gr.Markdown("<br>")
+    
+    # ========================================
+    # Footer
+    # ========================================
+    gr.Markdown(
+        """
+        <div style="text-align: center; color: #888; padding: 20px;">
+            Made with ❤️ by Jai
+        </div>
+        """
+    )
     
     # ========================================
     # Event Handlers
     # ========================================
     
-    # Generate button click
+    # Generate button
     generate_btn.click(
         fn=process_audio_to_minutes,
         inputs=[audio_input],
-        outputs=[status_output, minutes_output]
+        outputs=[status_output, minutes_output, minutes_accordion]
+    )
+    
+    # Refresh button
+    refresh_btn.click(
+        fn=refresh_page,
+        inputs=[],
+        outputs=[audio_input, status_output, minutes_output, minutes_accordion]
     )
 
 # ============================================
@@ -331,14 +347,14 @@ if __name__ == "__main__":
     print("   Start backend with: python backend.py")
     print("   Backend should be running on: http://localhost:8001")
     print()
-    print("📍 Frontend will be available at: http://localhost:7860")
+    print("📍 Frontend will be available at: http://localhost:7861")
     print()
     print("=" * 60)
     
     demo.launch(
         server_name="0.0.0.0",
-        server_port=7860,
+        server_port=7861,
         show_error=True,
-        share=False,  # Set to True if you want a public URL
+        share=False,
         show_api=False
     )
