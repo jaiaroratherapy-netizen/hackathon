@@ -101,7 +101,7 @@ Use this exact structure:
 
 ## **Minutes of the Meeting**
 **- Date:** [if present, else "Unknown"]
-**- Attendees:** [list names mentioned]
+**- Attendees:** [if not mentioned, say "Unknown"; if only able to recognise a few, write their names and say "and others"]
 
 ### **Summary**
 [2–3 sentences summarizing purpose and tone]
@@ -118,7 +118,7 @@ Use this exact structure:
 1. ...
 2. ...
 
-### **Notes / Context** *(optional)*
+### **Notes** [minimum 3 sentences]
 - Short factual notes or clarifications.
 
 Be concise, professional, and factually grounded. Maintain Markdown formatting faithfully."""
